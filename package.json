@@ -1,0 +1,30 @@
+{
+  "name": "web-ppg",
+  "version": "1.0.0",
+  "description": "Web application untuk menampilkan dan menganalisis data PPG dari Arduino Nano",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "ppg",
+    "arduino",
+    "serial",
+    "health"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@serialport/parser-readline": "^13.0.0",
+    "@supabase/supabase-js": "^2.95.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^4.18.2",
+    "serialport": "^12.0.0",
+    "socket.io": "^4.6.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spygmo Monitor</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <!-- Sidebar -->
+    <aside id="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div class="brand-text">
+                <span class="brand-name">Spygmo</span>
+                <span class="brand-sub">Monitor</span>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="#" class="nav-item active" data-page="dashboard">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7" rx="1"/>
+                    <rect x="14" y="3" width="7" height="7" rx="1"/>
+                    <rect x="3" y="14" width="7" height="7" rx="1"/>
+                    <rect x="14" y="14" width="7" height="7" rx="1"/>
+                </svg>
+                <span>Dashboard</span>
+            </a>
+            <a href="#" class="nav-item" data-page="analysis">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 21H4.6c-.56 0-.84 0-1.054-.109a1 1 0 01-.437-.437C3 20.24 3 19.96 3 19.4V3"/>
+                    <path d="M7 14l4-4 4 4 6-6"/>
+                </svg>
+                <span>Analysis</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <button id="themeToggle" class="theme-btn" title="Toggle theme">
+                <svg class="theme-icon-light" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"/>
+                    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+                <svg class="theme-icon-dark" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                </svg>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main id="mainContent">
+        <!-- Top Bar -->
+        <header id="topBar">
+            <div class="topbar-left">
+                <button id="toggleSidebar" class="icon-btn" title="Toggle sidebar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12h18M3 6h18M3 18h18" stroke-linecap="round"/>
+                    </svg>
+                </button>
+                <h1 id="pageTitle">Dashboard</h1>
+            </div>
+            <div class="topbar-right">
+                <div id="connectionIndicator" class="conn-indicator disconnected">
+                    <span class="conn-dot"></span>
+                    <span class="conn-text">Disconnected</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- ==================== DASHBOARD PAGE ==================== -->
+        <div id="dashboardPage" class="page">
+            <!-- Connection + Recording Row -->
+            <div class="top-controls">
+                <div class="control-card">
+                    <div class="control-card-header">
+                        <span class="control-label">Connection</span>
+                    </div>
+                    <div class="control-row">
+                        <select id="portSelect" class="form-select">
+                            <option value="">Select Port</option>
+                        </select>
+                        <select id="baudRate" class="form-select form-select-sm">
+                            <option value="9600">9600</option>
+                            <option value="115200" selected>115200</option>
+                            <option value="57600">57600</option>
+                        </select>
+                        <button id="refreshPorts" class="btn btn-ghost" title="Refresh ports">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 2v6h-6M3 12a9 9 0 0115.36-6.36L21 8M3 22v-6h6M21 12a9 9 0 01-15.36 6.36L3 16"/>
+                            </svg>
+                        </button>
+                        <button id="connectBtn" class="btn btn-primary">Connect</button>
+                        <button id="disconnectBtn" class="btn btn-danger" disabled>Disconnect</button>
+                    </div>
+                </div>
+
+                <div class="control-card">
+                    <div class="control-card-header">
+                        <span class="control-label">Recording</span>
+                        <div id="recordingStatus" class="rec-badge hidden">
+                            <span class="rec-dot"></span>
+                            <span id="recordDuration">0s</span>
+                        </div>
+                    </div>
+                    <div class="control-row">
+                        <button id="recordBtn" class="btn btn-primary" disabled>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>
+                            Record
+                        </button>
+                        <button id="stopRecordBtn" class="btn btn-danger" disabled>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+                            Stop
+                        </button>
+                        <div id="signalStatus" class="signal-badge hidden">
+                            <span id="signalStatusText">Signal OK</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metrics Row -->
+            <div class="metrics-row">
+                <div class="metric-card">
+                    <span class="metric-label">Raw Value</span>
+                    <span id="currentRaw" class="metric-value">--</span>
+                    <span class="metric-unit">LSB</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">Voltage</span>
+                    <span id="currentMv" class="metric-value accent-cyan">--</span>
+                    <span class="metric-unit">mV</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">Sample Rate</span>
+                    <span id="sampleRate" class="metric-value accent-green">--</span>
+                    <span class="metric-unit">Hz</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">Data Points</span>
+                    <span id="dataCount" class="metric-value accent-amber">0</span>
+                    <span class="metric-unit">samples</span>
+                </div>
+            </div>
+
+            <!-- Chart + Stats Row -->
+            <div class="chart-stats-row">
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <span class="chart-title">Spygmo Signal</span>
+                        <span class="chart-subtitle">Real-time mV waveform</span>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="ppgChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="stats-card">
+                    <div class="stats-header">Statistics</div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">Min</span>
+                            <span id="minMv" class="stat-value">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Max</span>
+                            <span id="maxMv" class="stat-value">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Average</span>
+                            <span id="avgMv" class="stat-value">--</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Range</span>
+                            <span id="rangeMv" class="stat-value">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== ANALYSIS PAGE ==================== -->
+        <div id="analysisPage" class="page hidden">
+            <div class="analysis-toolbar">
+                <div class="toolbar-info">
+                    <h2>Analysis</h2>
+                    <p>In-depth analysis of recorded data</p>
+                </div>
+                <div class="toolbar-actions">
+                    <input id="importCsvInput" type="file" accept=".csv" class="hidden" />
+                    <button id="importCsvBtn" class="btn btn-ghost">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                        </svg>
+                        Import CSV
+                    </button>
+                    <button id="goDashboardBtn" class="btn btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="8"/>
+                        </svg>
+                        New Recording
+                    </button>
+                </div>
+            </div>
+
+            <div id="recordingsCard" class="recordings-section hidden">
+                <div class="section-header">Recordings</div>
+                <div id="recordingsList" class="recordings-list"></div>
+            </div>
+
+            <div id="noRecordingsMessage" class="empty-state">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <h3>No Recordings Yet</h3>
+                <p>Start recording from the Dashboard to begin analysis</p>
+                <button onclick="switchPage('dashboard')" class="btn btn-primary">Go to Dashboard</button>
+            </div>
+
+            <div id="analysisCard" class="analysis-results hidden">
+                <div id="analysisContent"></div>
+            </div>
+        </div>
+
+        <!-- BPM Widget -->
+        <div id="bpmWidget" class="bpm-widget hidden">
+            <svg id="bpmHeart" class="bpm-heart" viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+            <div class="bpm-info">
+                <span class="bpm-label">BPM</span>
+                <span id="bpmValue" class="bpm-value">---</span>
+            </div>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
