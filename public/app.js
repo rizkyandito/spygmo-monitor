@@ -466,17 +466,27 @@ async function readSerialData() {
 
     let lineBuffer = '';
 
+    let chunkCount = 0;
     try {
       while (true) {
         const { value, done } = await serialReader.read();
         if (done) break;
+
+        chunkCount++;
+        if (chunkCount <= 5) {
+          console.log(`[SERIAL] Raw chunk #${chunkCount}:`, JSON.stringify(value));
+        }
 
         lineBuffer += value;
         const lines = lineBuffer.split('\n');
         lineBuffer = lines.pop(); // keep incomplete line in buffer
 
         for (const rawLine of lines) {
-          processSerialLine(rawLine.trim());
+          const trimmed = rawLine.trim();
+          if (chunkCount <= 10 && trimmed) {
+            console.log('[SERIAL] Line:', JSON.stringify(trimmed));
+          }
+          processSerialLine(trimmed);
         }
       }
     } catch (err) {
@@ -520,7 +530,12 @@ function processSerialLine(line) {
     }
   }
 
-  if (numbers.length === 0) return;
+  if (numbers.length === 0) {
+    if (rawBuffer.length < 5) console.log('[PARSE] No numbers found in:', JSON.stringify(line));
+    return;
+  }
+
+  if (rawBuffer.length < 5) console.log('[PARSE] OK, numbers:', numbers);
 
   // Use first number as primary value, second as secondary (if available)
   const primary = numbers[0];
