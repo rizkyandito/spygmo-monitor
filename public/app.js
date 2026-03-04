@@ -496,21 +496,39 @@ async function readSerialData() {
 }
 
 function processSerialLine(line) {
-  if (!line || line.startsWith('#')) return;
-  if (/^raw/i.test(line)) return; // skip header
+  if (!line) return;
 
+  // Extract all numbers from the line (handles any format)
+  // Strips labels like "value:", "BPM=", "sensor1:" etc.
+  // Supports: "512", "512,1650", "value:512", "512 1650 72", "ts --> 512,1650"
   let payload = line;
+
+  // Remove timestamp prefix if present (e.g. "12345 --> data")
   if (payload.includes('-->')) {
-    const parts = payload.split('-->');
-    payload = parts.pop().trim();
+    payload = payload.split('-->').pop().trim();
   }
 
-  const pieces = payload.split(/[,\s]+/).map(v => v.trim()).filter(Boolean);
-  if (pieces.length < 2) return;
+  // Extract all numeric values (int or float, including negative)
+  const numbers = [];
+  const tokens = payload.split(/[,\s\t]+/).filter(Boolean);
+  for (const token of tokens) {
+    // Strip label prefixes like "value:", "BPM=", "sensor1:"
+    const cleaned = token.replace(/^[a-zA-Z_][a-zA-Z0-9_]*[:=]/, '');
+    const num = parseFloat(cleaned);
+    if (!Number.isNaN(num) && isFinite(num)) {
+      numbers.push(num);
+    }
+  }
 
-  const raw = parseInt(pieces[0], 10);
-  const mv = parseFloat(pieces[1]);
-  if (Number.isNaN(raw) || Number.isNaN(mv)) return;
+  if (numbers.length === 0) return;
+
+  // Use first number as primary value, second as secondary (if available)
+  const primary = numbers[0];
+  const secondary = numbers.length >= 2 ? numbers[1] : null;
+
+  // For display: raw = integer version, mv = primary value (or secondary if 2 values)
+  const raw = Math.round(primary);
+  const mv = secondary !== null ? secondary : primary;
 
   const now = Date.now();
   if (lastTimestamp) {
