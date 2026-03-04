@@ -1,5 +1,27 @@
-// Spygmo (pressure) web client
-const socket = io();
+// Spygmo PPG Monitor - Web Serial API + Direct Supabase
+// No backend needed - runs entirely in the browser
+
+// ===== Supabase Direct Connection =====
+const SUPABASE_URL = 'https://vaflkvehtkwrvgyqtdiz.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZhZmxrdmVodGt3cnZneXF0ZGl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMjczMzIsImV4cCI6MjA4NjgwMzMzMn0.5DPKDdSHK_LkstgWXxhHBF98Z-BzantNTsOCaQB1rzg';
+
+let supabase = null;
+try {
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  console.log('[SUPABASE] Client initialized');
+} catch (err) {
+  console.warn('[SUPABASE] Init failed:', err.message);
+}
+
+// ===== Web Serial API =====
+let serialPort = null;
+let serialReader = null;
+let serialReadable = null;
+let isSerialConnected = false;
+let lastTimestamp = null;
+
+// Check Web Serial API support
+const hasWebSerial = 'serial' in navigator;
 
 // Chart setup
 const ctx = document.getElementById('ppgChart').getContext('2d');
@@ -54,95 +76,93 @@ let recorded = [];
 let recordings = [];
 let currentAnalysis = null;
 
-// === Supabase sync helpers ===
-let isCloudAvailable = true;
+// === Supabase CRUD helpers (direct, no backend) ===
 
 async function apiSaveRecording(recording) {
+  if (!supabase) return false;
   try {
-    const res = await fetch('/api/recordings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    const { error } = await supabase
+      .from('recordings')
+      .insert({
         id: recording.id,
         name: recording.name,
-        timestamp: recording.timestamp,
+        recorded_at: recording.timestamp,
         duration: recording.duration,
-        sampleCount: recording.sampleCount,
+        sample_count: recording.sampleCount,
         data: recording.data
-      })
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    isCloudAvailable = true;
+      });
+    if (error) throw error;
     return true;
   } catch (err) {
     console.warn('[SYNC] Save failed:', err.message);
-    isCloudAvailable = false;
     return false;
   }
 }
 
 async function apiLoadRecordings() {
+  if (!supabase) return null;
   try {
-    const res = await fetch('/api/recordings');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if (json.offline) { isCloudAvailable = false; return null; }
-    isCloudAvailable = true;
-    return json.recordings;
+    const { data, error } = await supabase
+      .from('recordings')
+      .select('id, name, recorded_at, duration, sample_count')
+      .order('recorded_at', { ascending: false });
+    if (error) throw error;
+    return data;
   } catch (err) {
     console.warn('[SYNC] Load failed:', err.message);
-    isCloudAvailable = false;
     return null;
   }
 }
 
 async function apiLoadRecordingFull(id) {
+  if (!supabase) return null;
   try {
-    const res = await fetch(`/api/recordings/${id}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    isCloudAvailable = true;
+    const { data, error } = await supabase
+      .from('recordings')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) throw error;
     return {
-      id: json.id,
-      name: json.name,
-      timestamp: new Date(json.recorded_at),
-      duration: json.duration,
-      sampleCount: json.sample_count,
-      data: json.data
+      id: data.id,
+      name: data.name,
+      timestamp: new Date(data.recorded_at),
+      duration: data.duration,
+      sampleCount: data.sample_count,
+      data: data.data
     };
   } catch (err) {
     console.warn('[SYNC] Full load failed:', err.message);
-    isCloudAvailable = false;
     return null;
   }
 }
 
 async function apiDeleteRecording(id) {
+  if (!supabase) return false;
   try {
-    const res = await fetch(`/api/recordings/${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    isCloudAvailable = true;
+    const { error } = await supabase
+      .from('recordings')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
     return true;
   } catch (err) {
     console.warn('[SYNC] Delete failed:', err.message);
-    isCloudAvailable = false;
     return false;
   }
 }
 
 async function apiRenameRecording(id, newName) {
+  if (!supabase) return false;
   try {
-    const res = await fetch(`/api/recordings/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName })
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    isCloudAvailable = true;
+    const { error } = await supabase
+      .from('recordings')
+      .update({ name: newName })
+      .eq('id', id);
+    if (error) throw error;
     return true;
   } catch (err) {
     console.warn('[SYNC] Rename failed:', err.message);
-    isCloudAvailable = false;
     return false;
   }
 }
@@ -166,9 +186,7 @@ const BPM_HISTORY_SIZE = 5;
 const MIN_PEAK_DISTANCE = 400;
 
 // UI refs
-const portSelect = document.getElementById('portSelect');
 const baudRate = document.getElementById('baudRate');
-const refreshBtn = document.getElementById('refreshPorts');
 const connectBtn = document.getElementById('connectBtn');
 const disconnectBtn = document.getElementById('disconnectBtn');
 const connectionIndicator = document.getElementById('connectionIndicator');
@@ -206,6 +224,9 @@ const qualityFill = document.getElementById('qualityFill');
 
 // Page subtitle
 const pageSubtitle = document.getElementById('pageSubtitle');
+
+// Serial notice
+const serialNotice = document.getElementById('serialNotice');
 
 function updateMetrics(raw, mv) {
   if (mvBuffer.length === 0) return;
@@ -248,21 +269,16 @@ function updateSignalQuality() {
   const max = Math.max(...recent);
   const range = max - min;
 
-  // Quality based on signal range (good signal has clear pulse waves)
-  // Also check noise level via standard deviation
   const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
   const variance = recent.reduce((a, v) => a + (v - avg) ** 2, 0) / recent.length;
   const stddev = Math.sqrt(variance);
 
-  // Signal-to-noise ratio estimate
   let quality = 0;
   if (range > 0) {
-    // Higher range with moderate stddev = good signal
     const snr = range / (stddev || 1);
     quality = Math.min(100, Math.max(0, snr * 15));
   }
 
-  // Penalize if range is too small (flat signal)
   if (range < 10) quality *= 0.3;
 
   quality = Math.round(quality);
@@ -290,7 +306,6 @@ function detectPeak(mv) {
       lastPeakTime = now;
       bpmBuffer = bpmBuffer.filter(t => (now - t) < 10000);
 
-      // Trigger heartbeat animation on each peak
       triggerHeartBeat();
 
       if (bpmBuffer.length >= 2) {
@@ -312,11 +327,10 @@ function detectPeak(mv) {
   }
 }
 
-// Animated heartbeat on peak detection
 function triggerHeartBeat() {
   if (bpmHeart) {
     bpmHeart.classList.remove('beat');
-    void bpmHeart.offsetWidth; // force reflow
+    void bpmHeart.offsetWidth;
     bpmHeart.classList.add('beat');
   }
   if (bpmPulseRing) {
@@ -354,7 +368,6 @@ function setConnectionStatus(status, text) {
   indicator.className = 'conn-indicator ' + status;
   connText.textContent = text;
 
-  // Update sidebar status
   if (sidebarStatusDot && sidebarStatusText) {
     if (status === 'connected') {
       sidebarStatusDot.classList.add('online');
@@ -365,7 +378,6 @@ function setConnectionStatus(status, text) {
     }
   }
 
-  // Update page subtitle
   if (pageSubtitle) {
     if (status === 'connected') {
       pageSubtitle.textContent = 'Receiving live PPG data';
@@ -375,67 +387,131 @@ function setConnectionStatus(status, text) {
   }
 }
 
-// Ports
-async function loadPorts() {
-  try {
-    const res = await fetch('/api/ports');
-    const ports = await res.json();
-    portSelect.innerHTML = '<option value="">Select Port</option>';
-    ports.forEach((p) => {
-      const opt = document.createElement('option');
-      opt.value = p.path;
-      opt.textContent = p.friendlyName || `${p.path}${p.manufacturer ? ' - ' + p.manufacturer : ''}`;
-      portSelect.appendChild(opt);
-      if (p.path.startsWith('/dev/tty.')) {
-        const alt = document.createElement('option');
-        alt.value = p.path.replace('/dev/tty.', '/dev/cu.');
-        alt.textContent = opt.textContent.replace('/dev/tty.', '/dev/cu.') + ' (cu)';
-        portSelect.appendChild(alt);
-      }
-    });
-    if (ports.length === 0) {
-      const opt = document.createElement('option');
-      opt.value = '';
-      opt.textContent = 'No ports detected';
-      portSelect.appendChild(opt);
-    }
-  } catch (err) {
-    alert('Failed to load ports: ' + err.message);
-  }
-}
+// ===== Web Serial API - Connect/Disconnect/Read =====
 
 async function connect() {
-  const port = portSelect.value;
-  if (!port) return alert('Select a COM port first');
+  if (!hasWebSerial) {
+    alert('Web Serial API is not supported in this browser. Please use Chrome or Edge.');
+    return;
+  }
+
   try {
-    const res = await fetch('/api/connect', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ portPath: port, baudRate: baudRate.value || 115200 }),
-    });
-    const r = await res.json();
-    if (r.success) {
-      setConnectionStatus('connected', 'Connected: ' + port);
-      connectBtn.disabled = true;
-      disconnectBtn.disabled = false;
-      portSelect.disabled = true;
-      baudRate.disabled = true;
-      recordBtn.disabled = false;
-      startBPMDetection();
-    } else {
-      alert(r.error || 'Connection failed');
-    }
+    // Browser will show port picker dialog
+    serialPort = await navigator.serial.requestPort();
+    await serialPort.open({ baudRate: parseInt(baudRate.value) || 115200 });
+
+    isSerialConnected = true;
+    setConnectionStatus('connected', 'Connected via Web Serial');
+    connectBtn.disabled = true;
+    disconnectBtn.disabled = false;
+    baudRate.disabled = true;
+    recordBtn.disabled = false;
+    startBPMDetection();
+
+    // Start reading
+    readSerialData();
   } catch (err) {
+    if (err.name === 'NotFoundError') {
+      // User cancelled the port picker
+      return;
+    }
+    console.error('[SERIAL] Connection failed:', err);
     alert('Connection failed: ' + err.message);
   }
 }
 
+async function readSerialData() {
+  const decoder = new TextDecoderStream();
+  serialReadable = serialPort.readable.pipeTo(decoder.writable);
+  serialReader = decoder.readable.getReader();
+
+  let lineBuffer = '';
+
+  try {
+    while (true) {
+      const { value, done } = await serialReader.read();
+      if (done) break;
+
+      lineBuffer += value;
+      const lines = lineBuffer.split('\n');
+      lineBuffer = lines.pop(); // keep incomplete line in buffer
+
+      for (const rawLine of lines) {
+        processSerialLine(rawLine.trim());
+      }
+    }
+  } catch (err) {
+    if (err.name !== 'TypeError') { // ignore "port closed" errors
+      console.error('[SERIAL] Read error:', err);
+    }
+  } finally {
+    serialReader.releaseLock();
+  }
+}
+
+function processSerialLine(line) {
+  if (!line || line.startsWith('#')) return;
+  if (/^raw/i.test(line)) return; // skip header
+
+  let payload = line;
+  if (payload.includes('-->')) {
+    const parts = payload.split('-->');
+    payload = parts.pop().trim();
+  }
+
+  const pieces = payload.split(/[,\s]+/).map(v => v.trim()).filter(Boolean);
+  if (pieces.length < 2) return;
+
+  const raw = parseInt(pieces[0], 10);
+  const mv = parseFloat(pieces[1]);
+  if (Number.isNaN(raw) || Number.isNaN(mv)) return;
+
+  const now = Date.now();
+  if (lastTimestamp) {
+    const dt = now - lastTimestamp;
+    if (dt > 0) sampleRateHz = 1000 / dt;
+  }
+  lastTimestamp = now;
+
+  rawBuffer.push(raw);
+  mvBuffer.push(mv);
+  if (rawBuffer.length > 5000) {
+    rawBuffer.shift();
+    mvBuffer.shift();
+  }
+
+  if (isRecording) {
+    recorded.push({ t: now - recordStart, raw, mv });
+  }
+
+  updateMetrics(raw, mv);
+  updateChart();
+}
+
 async function disconnect() {
-  await fetch('/api/disconnect', { method: 'POST' });
+  isSerialConnected = false;
+
+  try {
+    if (serialReader) {
+      await serialReader.cancel();
+      serialReader = null;
+    }
+    if (serialReadable) {
+      await serialReadable.catch(() => {});
+      serialReadable = null;
+    }
+    if (serialPort) {
+      await serialPort.close();
+      serialPort = null;
+    }
+  } catch (err) {
+    console.warn('[SERIAL] Disconnect error:', err.message);
+  }
+
+  lastTimestamp = null;
   setConnectionStatus('disconnected', 'Disconnected');
   connectBtn.disabled = false;
   disconnectBtn.disabled = true;
-  portSelect.disabled = false;
   baudRate.disabled = false;
   recordBtn.disabled = true;
   stopBtn.disabled = true;
@@ -481,62 +557,21 @@ function stopRecording() {
     switchPage('analysis');
     updateAnalysisPage();
 
-    // Async save to Supabase
     apiSaveRecording(recording).then(saved => {
-      if (!saved) showSyncStatus('Recording saved locally only (cloud unavailable)');
+      if (saved) {
+        showSyncStatus('Recording saved to cloud');
+      } else {
+        showSyncStatus('Recording saved locally only');
+      }
     });
   }
   recorded = [];
 }
 
-// Socket listeners
-socket.on('connection-status', (data) => {
-  if (data.status === 'connected') {
-    setConnectionStatus('connected', 'Connected: ' + data.port);
-    connectBtn.disabled = true;
-    disconnectBtn.disabled = false;
-    portSelect.disabled = true;
-    baudRate.disabled = true;
-    recordBtn.disabled = false;
-  }
-  if (data.status === 'disconnected') {
-    resetBPM();
-    disconnect();
-  }
-});
-
-socket.on('spygmo-rate', ({ dt }) => {
-  if (dt > 0) {
-    sampleRateHz = 1000 / dt;
-    sampleRateEl.textContent = sampleRateHz.toFixed(1);
-  }
-});
-
-socket.on('spygmo-data', ({ timestamp, raw, mv }) => {
-  rawBuffer.push(raw);
-  mvBuffer.push(mv);
-  if (rawBuffer.length > 5000) {
-    rawBuffer.shift();
-    mvBuffer.shift();
-  }
-
-  if (isRecording) {
-    recorded.push({ t: timestamp - recordStart, raw, mv });
-  }
-
-  updateMetrics(raw, mv);
-  updateChart();
-});
-
-socket.on('error', (err) => {
-  console.error(err);
-});
-
 // Analysis page functions
 let analysisChart = null;
 
 async function updateAnalysisPage() {
-  // If no local recordings, try loading from Supabase
   if (recordings.length === 0) {
     const cloudRecordings = await apiLoadRecordings();
     if (cloudRecordings && cloudRecordings.length > 0) {
@@ -546,7 +581,7 @@ async function updateAnalysisPage() {
         timestamp: new Date(r.recorded_at),
         duration: r.duration,
         sampleCount: r.sample_count,
-        data: null // lazy-loaded on "View"
+        data: null
       }));
     }
   }
@@ -565,7 +600,6 @@ async function updateAnalysisPage() {
   recordings.forEach((rec, index) => {
     const div = document.createElement('div');
     div.className = `recording-item ${currentAnalysis?.id === rec.id ? 'active' : ''}`;
-    div.style.animationDelay = `${index * 50}ms`;
     div.innerHTML = `
       <div class="recording-info">
         <h4><span class="recording-name" data-id="${rec.id}">${rec.name}</span></h4>
@@ -588,7 +622,6 @@ async function updateAnalysisPage() {
       const id = parseInt(btn.getAttribute('data-id'));
       const rec = recordings.find(r => r.id === id);
       if (rec) {
-        // Lazy-load full data from Supabase if not in memory
         if (!rec.data) {
           btn.textContent = 'Loading...';
           btn.disabled = true;
@@ -658,7 +691,6 @@ function showRecordingAnalysis(recording) {
   const avgMv = mvValues.reduce((a, b) => a + b, 0) / mvValues.length;
   const rangeMv = maxMv - minMv;
 
-  // Calculate estimated BPM from recording data
   let estBPM = '--';
   if (mvValues.length > 50) {
     const threshold = minMv + (rangeMv * 0.7);
@@ -847,7 +879,6 @@ function importCsv() {
       updateAnalysisPage();
       importCsvInput.value = '';
 
-      // Async save to Supabase
       apiSaveRecording(recording).then(saved => {
         if (!saved) showSyncStatus('Imported recording saved locally only');
       });
@@ -859,7 +890,6 @@ function importCsv() {
 }
 
 // UI wiring
-refreshBtn.addEventListener('click', loadPorts);
 connectBtn.addEventListener('click', connect);
 disconnectBtn.addEventListener('click', disconnect);
 recordBtn.addEventListener('click', startRecording);
@@ -885,8 +915,7 @@ function switchPage(page) {
     document.getElementById('dashboardPage').classList.remove('hidden');
     if (pageTitle) pageTitle.textContent = 'Dashboard';
     if (pageSubtitle) {
-      const isConnected = connectionIndicator.classList.contains('connected');
-      pageSubtitle.textContent = isConnected ? 'Receiving live PPG data' : 'Real-time PPG monitoring';
+      pageSubtitle.textContent = isSerialConnected ? 'Receiving live PPG data' : 'Real-time PPG monitoring';
     }
   }
   if (page === 'analysis') {
@@ -986,5 +1015,7 @@ function makeNameEditable(nameEl, recording) {
 }
 
 // Init
-loadPorts();
+if (!hasWebSerial && serialNotice) {
+  serialNotice.classList.remove('hidden');
+}
 switchPage('dashboard');

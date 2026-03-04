@@ -1452,6 +1452,28 @@ body.dark-theme .theme-icon-dark { display: block; }
 }
 
 /* ===================================
+   Serial Notice Banner
+   =================================== */
+.serial-notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 18px;
+    background: var(--amber-muted);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    border-radius: var(--radius-md);
+    color: var(--amber);
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    animation: pageIn 0.4s ease;
+}
+
+.serial-notice.hidden { display: none; }
+
+.serial-notice strong { font-weight: 700; }
+
+/* ===================================
    Responsive
    =================================== */
 @media (max-width: 1200px) {

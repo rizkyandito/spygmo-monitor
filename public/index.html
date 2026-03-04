@@ -6,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Spygmo Monitor</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
@@ -95,6 +95,13 @@
 
         <!-- ==================== DASHBOARD PAGE ==================== -->
         <div id="dashboardPage" class="page">
+
+            <!-- Web Serial API Notice -->
+            <div id="serialNotice" class="serial-notice hidden">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+                <span>Web Serial API not supported. Use <strong>Chrome</strong> or <strong>Edge</strong> for Arduino connection.</span>
+            </div>
+
             <!-- Connection + Recording Row -->
             <div class="top-controls">
                 <div class="control-card glass-card">
@@ -105,22 +112,14 @@
                         </div>
                     </div>
                     <div class="control-row">
-                        <select id="portSelect" class="form-select">
-                            <option value="">Select Port</option>
-                        </select>
                         <select id="baudRate" class="form-select form-select-sm">
                             <option value="9600">9600</option>
                             <option value="115200" selected>115200</option>
                             <option value="57600">57600</option>
                         </select>
-                        <button id="refreshPorts" class="btn btn-icon" title="Refresh ports">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 2v6h-6M3 12a9 9 0 0115.36-6.36L21 8M3 22v-6h6M21 12a9 9 0 01-15.36 6.36L3 16"/>
-                            </svg>
-                        </button>
                         <button id="connectBtn" class="btn btn-primary">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                            Connect
+                            Connect Arduino
                         </button>
                         <button id="disconnectBtn" class="btn btn-danger" disabled>Disconnect</button>
                     </div>
@@ -169,7 +168,6 @@
                         <span id="currentRaw" class="metric-value">--</span>
                         <span class="metric-unit">LSB</span>
                     </div>
-                    <div class="metric-sparkline" id="sparklineRaw"></div>
                 </div>
                 <div class="metric-card glass-card" data-metric="voltage">
                     <div class="metric-card-inner">
