@@ -16,7 +16,7 @@ try {
 // ===== Web Serial API =====
 let serialPort = null;
 let serialReader = null;
-let serialReadable = null;
+let serialReadAbortController = null;
 let isSerialConnected = false;
 let lastTimestamp = null;
 
@@ -421,31 +421,43 @@ async function connect() {
 }
 
 async function readSerialData() {
-  const decoder = new TextDecoderStream();
-  serialReadable = serialPort.readable.pipeTo(decoder.writable);
-  serialReader = decoder.readable.getReader();
-
-  let lineBuffer = '';
+  serialReadAbortController = new AbortController();
 
   try {
-    while (true) {
-      const { value, done } = await serialReader.read();
-      if (done) break;
+    const textDecoder = new TextDecoderStream();
+    const readableStreamClosed = serialPort.readable.pipeTo(textDecoder.writable, {
+      signal: serialReadAbortController.signal
+    });
+    serialReader = textDecoder.readable.getReader();
 
-      lineBuffer += value;
-      const lines = lineBuffer.split('\n');
-      lineBuffer = lines.pop(); // keep incomplete line in buffer
+    let lineBuffer = '';
 
-      for (const rawLine of lines) {
-        processSerialLine(rawLine.trim());
+    try {
+      while (true) {
+        const { value, done } = await serialReader.read();
+        if (done) break;
+
+        lineBuffer += value;
+        const lines = lineBuffer.split('\n');
+        lineBuffer = lines.pop(); // keep incomplete line in buffer
+
+        for (const rawLine of lines) {
+          processSerialLine(rawLine.trim());
+        }
       }
+    } catch (err) {
+      // Ignore abort errors (from disconnect)
+      if (err.name !== 'AbortError' && err.name !== 'TypeError') {
+        console.error('[SERIAL] Read error:', err);
+      }
+    } finally {
+      serialReader.releaseLock();
     }
+
+    // Wait for pipeTo to complete
+    await readableStreamClosed.catch(() => {});
   } catch (err) {
-    if (err.name !== 'TypeError') { // ignore "port closed" errors
-      console.error('[SERIAL] Read error:', err);
-    }
-  } finally {
-    serialReader.releaseLock();
+    console.error('[SERIAL] Stream setup error:', err);
   }
 }
 
@@ -492,16 +504,19 @@ async function disconnect() {
   isSerialConnected = false;
 
   try {
+    // Abort the pipeTo stream first
+    if (serialReadAbortController) {
+      serialReadAbortController.abort();
+      serialReadAbortController = null;
+    }
+    // Cancel the reader
     if (serialReader) {
-      await serialReader.cancel();
+      await serialReader.cancel().catch(() => {});
       serialReader = null;
     }
-    if (serialReadable) {
-      await serialReadable.catch(() => {});
-      serialReadable = null;
-    }
+    // Close the serial port
     if (serialPort) {
-      await serialPort.close();
+      await serialPort.close().catch(() => {});
       serialPort = null;
     }
   } catch (err) {
