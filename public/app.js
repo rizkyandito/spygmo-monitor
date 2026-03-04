@@ -5,9 +5,9 @@
 const SUPABASE_URL = 'https://vaflkvehtkwrvgyqtdiz.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZhZmxrdmVodGt3cnZneXF0ZGl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMjczMzIsImV4cCI6MjA4NjgwMzMzMn0.5DPKDdSHK_LkstgWXxhHBF98Z-BzantNTsOCaQB1rzg';
 
-let supabase = null;
+let supabaseClient = null;
 try {
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   console.log('[SUPABASE] Client initialized');
 } catch (err) {
   console.warn('[SUPABASE] Init failed:', err.message);
@@ -79,9 +79,9 @@ let currentAnalysis = null;
 // === Supabase CRUD helpers (direct, no backend) ===
 
 async function apiSaveRecording(recording) {
-  if (!supabase) return false;
+  if (!supabaseClient) return false;
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('recordings')
       .insert({
         id: recording.id,
@@ -100,9 +100,9 @@ async function apiSaveRecording(recording) {
 }
 
 async function apiLoadRecordings() {
-  if (!supabase) return null;
+  if (!supabaseClient) return null;
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('recordings')
       .select('id, name, recorded_at, duration, sample_count')
       .order('recorded_at', { ascending: false });
@@ -115,9 +115,9 @@ async function apiLoadRecordings() {
 }
 
 async function apiLoadRecordingFull(id) {
-  if (!supabase) return null;
+  if (!supabaseClient) return null;
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('recordings')
       .select('*')
       .eq('id', id)
@@ -138,9 +138,9 @@ async function apiLoadRecordingFull(id) {
 }
 
 async function apiDeleteRecording(id) {
-  if (!supabase) return false;
+  if (!supabaseClient) return false;
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('recordings')
       .delete()
       .eq('id', id);
@@ -153,9 +153,9 @@ async function apiDeleteRecording(id) {
 }
 
 async function apiRenameRecording(id, newName) {
-  if (!supabase) return false;
+  if (!supabaseClient) return false;
   try {
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('recordings')
       .update({ name: newName })
       .eq('id', id);
