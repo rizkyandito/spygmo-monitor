@@ -186,6 +186,8 @@ const BPM_HISTORY_SIZE = 5;
 const MIN_PEAK_DISTANCE = 400;
 
 // UI refs
+const scanPortBtn = document.getElementById('scanPortBtn');
+const selectedPortLabel = document.getElementById('selectedPortLabel');
 const baudRate = document.getElementById('baudRate');
 const connectBtn = document.getElementById('connectBtn');
 const disconnectBtn = document.getElementById('disconnectBtn');
@@ -387,23 +389,59 @@ function setConnectionStatus(status, text) {
   }
 }
 
-// ===== Web Serial API - Connect/Disconnect/Read =====
+// ===== Web Serial API - Scan/Connect/Disconnect/Read =====
 
-async function connect() {
+let selectedPort = null;
+
+async function scanPort() {
   if (!hasWebSerial) {
-    alert('Web Serial API is not supported in this browser. Please use Chrome or Edge.');
+    alert('Web Serial API tidak didukung di browser ini.\nGunakan Chrome atau Edge.');
     return;
   }
 
   try {
     // Browser will show port picker dialog
-    serialPort = await navigator.serial.requestPort();
-    await serialPort.open({ baudRate: parseInt(baudRate.value) || 115200 });
+    selectedPort = await navigator.serial.requestPort();
+
+    // Get port info
+    const info = selectedPort.getInfo();
+    const vendorId = info.usbVendorId ? `VID:${info.usbVendorId.toString(16).toUpperCase()}` : '';
+    const productId = info.usbProductId ? `PID:${info.usbProductId.toString(16).toUpperCase()}` : '';
+    const portInfo = [vendorId, productId].filter(Boolean).join(' ');
+
+    selectedPortLabel.textContent = portInfo || 'Serial Port Selected';
+    selectedPortLabel.classList.add('port-selected');
+    connectBtn.disabled = false;
+    scanPortBtn.innerHTML = `
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+      Change Port
+    `;
+  } catch (err) {
+    if (err.name === 'NotFoundError') {
+      // User cancelled the port picker
+      return;
+    }
+    console.error('[SERIAL] Port selection failed:', err);
+  }
+}
+
+async function connect() {
+  if (!selectedPort) {
+    alert('Pilih port terlebih dahulu.');
+    return;
+  }
+
+  try {
+    const baud = parseInt(baudRate.value) || 115200;
+    await selectedPort.open({ baudRate: baud });
+    serialPort = selectedPort;
 
     isSerialConnected = true;
-    setConnectionStatus('connected', 'Connected via Web Serial');
-    connectBtn.disabled = true;
+    setConnectionStatus('connected', `Connected @ ${baud} baud`);
+    connectBtn.classList.add('hidden');
+    disconnectBtn.classList.remove('hidden');
     disconnectBtn.disabled = false;
+    scanPortBtn.disabled = true;
     baudRate.disabled = true;
     recordBtn.disabled = false;
     startBPMDetection();
@@ -411,12 +449,8 @@ async function connect() {
     // Start reading
     readSerialData();
   } catch (err) {
-    if (err.name === 'NotFoundError') {
-      // User cancelled the port picker
-      return;
-    }
     console.error('[SERIAL] Connection failed:', err);
-    alert('Connection failed: ' + err.message);
+    alert('Koneksi gagal: ' + err.message);
   }
 }
 
@@ -524,9 +558,13 @@ async function disconnect() {
   }
 
   lastTimestamp = null;
+  serialPort = null;
   setConnectionStatus('disconnected', 'Disconnected');
+  connectBtn.classList.remove('hidden');
   connectBtn.disabled = false;
+  disconnectBtn.classList.add('hidden');
   disconnectBtn.disabled = true;
+  scanPortBtn.disabled = false;
   baudRate.disabled = false;
   recordBtn.disabled = true;
   stopBtn.disabled = true;
@@ -905,6 +943,7 @@ function importCsv() {
 }
 
 // UI wiring
+scanPortBtn.addEventListener('click', scanPort);
 connectBtn.addEventListener('click', connect);
 disconnectBtn.addEventListener('click', disconnect);
 recordBtn.addEventListener('click', startRecording);

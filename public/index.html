@@ -112,16 +112,25 @@
                         </div>
                     </div>
                     <div class="control-row">
-                        <select id="baudRate" class="form-select form-select-sm">
-                            <option value="9600">9600</option>
-                            <option value="115200" selected>115200</option>
-                            <option value="57600">57600</option>
-                        </select>
-                        <button id="connectBtn" class="btn btn-primary">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                            Connect Arduino
+                        <button id="scanPortBtn" class="btn btn-ghost">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/><path d="M22 3l-8.5 8.5"/></svg>
+                            Select Port
                         </button>
-                        <button id="disconnectBtn" class="btn btn-danger" disabled>Disconnect</button>
+                        <span id="selectedPortLabel" class="port-label">No port selected</span>
+                    </div>
+                    <div class="control-row" style="margin-top: 8px;">
+                        <select id="baudRate" class="form-select form-select-sm">
+                            <option value="9600">9600 baud</option>
+                            <option value="19200">19200 baud</option>
+                            <option value="38400">38400 baud</option>
+                            <option value="57600">57600 baud</option>
+                            <option value="115200" selected>115200 baud</option>
+                        </select>
+                        <button id="connectBtn" class="btn btn-primary" disabled>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                            Connect
+                        </button>
+                        <button id="disconnectBtn" class="btn btn-danger hidden" disabled>Disconnect</button>
                     </div>
                 </div>
 
