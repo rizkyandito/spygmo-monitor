@@ -17,9 +17,9 @@ const chart = new Chart(ctx, {
       label: 'Spygmo (mV)',
       data: mvData,
       borderColor: chartColor,
-      backgroundColor: 'rgba(99, 102, 241, 0.08)',
-      borderWidth: 1.5,
-      tension: 0.3,
+      backgroundColor: 'rgba(99, 102, 241, 0.06)',
+      borderWidth: 2,
+      tension: 0.35,
       pointRadius: 0,
       fill: true,
     }],
@@ -33,10 +33,10 @@ const chart = new Chart(ctx, {
       y: {
         display: true,
         ticks: {
-          color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#a1a1aa',
-          font: { size: 11, family: 'Inter' }
+          color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#94a3b8',
+          font: { size: 11, family: 'JetBrains Mono, Inter, monospace' }
         },
-        grid: { color: 'rgba(99, 102, 241, 0.06)', drawBorder: false },
+        grid: { color: 'rgba(99, 102, 241, 0.05)', drawBorder: false },
       },
     },
     plugins: { legend: { display: false } },
@@ -194,7 +194,18 @@ const rangeMvEl = document.getElementById('rangeMv');
 const bpmWidget = document.getElementById('bpmWidget');
 const bpmValueEl = document.getElementById('bpmValue');
 const bpmHeart = document.getElementById('bpmHeart');
-const bpmHeartContainer = bpmHeart.parentElement;
+const bpmPulseRing = document.querySelector('.bpm-pulse-ring');
+
+// Sidebar status refs
+const sidebarStatusDot = document.getElementById('sidebarStatusDot');
+const sidebarStatusText = document.getElementById('sidebarStatusText');
+
+// Signal quality refs
+const qualityPercent = document.getElementById('qualityPercent');
+const qualityFill = document.getElementById('qualityFill');
+
+// Page subtitle
+const pageSubtitle = document.getElementById('pageSubtitle');
 
 function updateMetrics(raw, mv) {
   if (mvBuffer.length === 0) return;
@@ -211,6 +222,7 @@ function updateMetrics(raw, mv) {
   sampleRateEl.textContent = sampleRateHz ? sampleRateHz.toFixed(1) : '--';
 
   detectPeak(mv);
+  updateSignalQuality();
 }
 
 function updateChart() {
@@ -221,6 +233,41 @@ function updateChart() {
   labels.length = mvData.length;
   labels.fill('');
   chart.update('none');
+}
+
+// Signal Quality Estimation
+function updateSignalQuality() {
+  if (mvBuffer.length < 50) {
+    qualityPercent.textContent = '--%';
+    qualityFill.style.width = '0%';
+    return;
+  }
+
+  const recent = mvBuffer.slice(-200);
+  const min = Math.min(...recent);
+  const max = Math.max(...recent);
+  const range = max - min;
+
+  // Quality based on signal range (good signal has clear pulse waves)
+  // Also check noise level via standard deviation
+  const avg = recent.reduce((a, b) => a + b, 0) / recent.length;
+  const variance = recent.reduce((a, v) => a + (v - avg) ** 2, 0) / recent.length;
+  const stddev = Math.sqrt(variance);
+
+  // Signal-to-noise ratio estimate
+  let quality = 0;
+  if (range > 0) {
+    // Higher range with moderate stddev = good signal
+    const snr = range / (stddev || 1);
+    quality = Math.min(100, Math.max(0, snr * 15));
+  }
+
+  // Penalize if range is too small (flat signal)
+  if (range < 10) quality *= 0.3;
+
+  quality = Math.round(quality);
+  qualityPercent.textContent = quality + '%';
+  qualityFill.style.width = quality + '%';
 }
 
 // BPM Peak Detection
@@ -243,6 +290,9 @@ function detectPeak(mv) {
       lastPeakTime = now;
       bpmBuffer = bpmBuffer.filter(t => (now - t) < 10000);
 
+      // Trigger heartbeat animation on each peak
+      triggerHeartBeat();
+
       if (bpmBuffer.length >= 2) {
         const intervals = [];
         for (let i = 1; i < bpmBuffer.length; i++) {
@@ -259,6 +309,20 @@ function detectPeak(mv) {
         }
       }
     }
+  }
+}
+
+// Animated heartbeat on peak detection
+function triggerHeartBeat() {
+  if (bpmHeart) {
+    bpmHeart.classList.remove('beat');
+    void bpmHeart.offsetWidth; // force reflow
+    bpmHeart.classList.add('beat');
+  }
+  if (bpmPulseRing) {
+    bpmPulseRing.classList.remove('animate');
+    void bpmPulseRing.offsetWidth;
+    bpmPulseRing.classList.add('animate');
   }
 }
 
@@ -289,6 +353,26 @@ function setConnectionStatus(status, text) {
   const connText = indicator.querySelector('.conn-text');
   indicator.className = 'conn-indicator ' + status;
   connText.textContent = text;
+
+  // Update sidebar status
+  if (sidebarStatusDot && sidebarStatusText) {
+    if (status === 'connected') {
+      sidebarStatusDot.classList.add('online');
+      sidebarStatusText.textContent = 'Connected';
+    } else {
+      sidebarStatusDot.classList.remove('online');
+      sidebarStatusText.textContent = 'Offline';
+    }
+  }
+
+  // Update page subtitle
+  if (pageSubtitle) {
+    if (status === 'connected') {
+      pageSubtitle.textContent = 'Receiving live PPG data';
+    } else {
+      pageSubtitle.textContent = 'Real-time PPG monitoring';
+    }
+  }
 }
 
 // Ports
@@ -478,9 +562,10 @@ async function updateAnalysisPage() {
   noRecordingsMessage.classList.add('hidden');
 
   recordingsList.innerHTML = '';
-  recordings.forEach((rec) => {
+  recordings.forEach((rec, index) => {
     const div = document.createElement('div');
     div.className = `recording-item ${currentAnalysis?.id === rec.id ? 'active' : ''}`;
+    div.style.animationDelay = `${index * 50}ms`;
     div.innerHTML = `
       <div class="recording-info">
         <h4><span class="recording-name" data-id="${rec.id}">${rec.name}</span></h4>
@@ -573,6 +658,27 @@ function showRecordingAnalysis(recording) {
   const avgMv = mvValues.reduce((a, b) => a + b, 0) / mvValues.length;
   const rangeMv = maxMv - minMv;
 
+  // Calculate estimated BPM from recording data
+  let estBPM = '--';
+  if (mvValues.length > 50) {
+    const threshold = minMv + (rangeMv * 0.7);
+    const peaks = [];
+    for (let i = 2; i < mvValues.length - 2; i++) {
+      if (mvValues[i] > threshold && mvValues[i] >= mvValues[i-1] && mvValues[i] >= mvValues[i+1]) {
+        if (peaks.length === 0 || (i - peaks[peaks.length - 1]) > 20) {
+          peaks.push(i);
+        }
+      }
+    }
+    if (peaks.length >= 2 && recording.duration > 0) {
+      const avgSamplesPerBeat = (peaks[peaks.length-1] - peaks[0]) / (peaks.length - 1);
+      const samplesPerSec = mvValues.length / recording.duration;
+      const beatsPerSec = samplesPerSec / avgSamplesPerBeat;
+      const bpm = Math.round(beatsPerSec * 60);
+      if (bpm >= 40 && bpm <= 180) estBPM = bpm;
+    }
+  }
+
   const content = `
     <div class="analysis-header">
       <h4>${recording.name}</h4>
@@ -597,8 +703,8 @@ function showRecordingAnalysis(recording) {
         <div class="analysis-metric-value">${avgMv.toFixed(3)}</div>
       </div>
       <div class="analysis-metric">
-        <div class="analysis-metric-label">Range mV</div>
-        <div class="analysis-metric-value">${rangeMv.toFixed(3)}</div>
+        <div class="analysis-metric-label">Est. BPM</div>
+        <div class="analysis-metric-value" style="color: var(--pink);">${estBPM}</div>
       </div>
     </div>
 
@@ -621,7 +727,7 @@ function showRecordingAnalysis(recording) {
   const actx = document.getElementById('analysisChart').getContext('2d');
   if (analysisChart) analysisChart.destroy();
 
-  const mutedColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#a1a1aa';
+  const mutedColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#94a3b8';
 
   analysisChart = new Chart(actx, {
     type: 'line',
@@ -631,9 +737,9 @@ function showRecordingAnalysis(recording) {
         label: 'mV',
         data: mvValues,
         borderColor: '#ec4899',
-        backgroundColor: 'rgba(236, 72, 153, 0.08)',
-        borderWidth: 1.5,
-        tension: 0.3,
+        backgroundColor: 'rgba(236, 72, 153, 0.06)',
+        borderWidth: 2,
+        tension: 0.35,
         pointRadius: 0,
         fill: true,
       }]
@@ -641,31 +747,33 @@ function showRecordingAnalysis(recording) {
     options: {
       responsive: true,
       maintainAspectRatio: true,
-      animation: { duration: 500 },
+      animation: { duration: 600, easing: 'easeOutQuart' },
       scales: {
         x: {
           display: true,
-          title: { display: true, text: 'Sample', color: mutedColor, font: { size: 11, weight: '600', family: 'Inter' } },
-          ticks: { color: mutedColor, font: { size: 10, family: 'Inter' } },
-          grid: { color: 'rgba(236, 72, 153, 0.06)', drawBorder: false }
+          title: { display: true, text: 'Sample', color: mutedColor, font: { size: 11, weight: '600', family: 'JetBrains Mono, Inter, monospace' } },
+          ticks: { color: mutedColor, font: { size: 10, family: 'JetBrains Mono, Inter, monospace' } },
+          grid: { color: 'rgba(236, 72, 153, 0.04)', drawBorder: false }
         },
         y: {
           display: true,
-          title: { display: true, text: 'mV', color: mutedColor, font: { size: 11, weight: '600', family: 'Inter' } },
-          ticks: { color: mutedColor, font: { size: 10, family: 'Inter' } },
-          grid: { color: 'rgba(236, 72, 153, 0.06)', drawBorder: false }
+          title: { display: true, text: 'mV', color: mutedColor, font: { size: 11, weight: '600', family: 'JetBrains Mono, Inter, monospace' } },
+          ticks: { color: mutedColor, font: { size: 10, family: 'JetBrains Mono, Inter, monospace' } },
+          grid: { color: 'rgba(236, 72, 153, 0.04)', drawBorder: false }
         }
       },
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(99, 102, 241, 0.95)',
-          titleColor: '#fff',
-          bodyColor: '#fff',
-          padding: 10,
-          cornerRadius: 6,
-          titleFont: { family: 'Inter', size: 12 },
-          bodyFont: { family: 'Inter', size: 12 },
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          titleColor: '#f1f5f9',
+          bodyColor: '#f1f5f9',
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { family: 'JetBrains Mono, monospace', size: 11 },
+          bodyFont: { family: 'JetBrains Mono, monospace', size: 12 },
+          borderColor: 'rgba(99, 102, 241, 0.2)',
+          borderWidth: 1,
           callbacks: {
             label: (context) => `mV: ${context.parsed.y.toFixed(3)}`
           }
@@ -776,10 +884,15 @@ function switchPage(page) {
   if (page === 'dashboard') {
     document.getElementById('dashboardPage').classList.remove('hidden');
     if (pageTitle) pageTitle.textContent = 'Dashboard';
+    if (pageSubtitle) {
+      const isConnected = connectionIndicator.classList.contains('connected');
+      pageSubtitle.textContent = isConnected ? 'Receiving live PPG data' : 'Real-time PPG monitoring';
+    }
   }
   if (page === 'analysis') {
     document.getElementById('analysisPage').classList.remove('hidden');
     if (pageTitle) pageTitle.textContent = 'Analysis';
+    if (pageSubtitle) pageSubtitle.textContent = 'Recorded data analysis';
     updateAnalysisPage();
   }
 
