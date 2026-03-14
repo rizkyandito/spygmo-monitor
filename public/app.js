@@ -202,15 +202,7 @@ const recordingsCard = document.getElementById('recordingsCard');
 const noRecordingsMessage = document.getElementById('noRecordingsMessage');
 const analysisCard = document.getElementById('analysisCard');
 
-// Metrics refs
-const currentRawEl = document.getElementById('currentRaw');
-const currentMvEl = document.getElementById('currentMv');
-const sampleRateEl = document.getElementById('sampleRate');
-const dataCountEl = document.getElementById('dataCount');
-const minMvEl = document.getElementById('minMv');
-const maxMvEl = document.getElementById('maxMv');
-const avgMvEl = document.getElementById('avgMv');
-const rangeMvEl = document.getElementById('rangeMv');
+// BPM refs
 const bpmWidget = document.getElementById('bpmWidget');
 const bpmValueEl = document.getElementById('bpmValue');
 const bpmHeart = document.getElementById('bpmHeart');
@@ -232,18 +224,6 @@ const serialNotice = document.getElementById('serialNotice');
 
 function updateMetrics(raw, mv) {
   if (mvBuffer.length === 0) return;
-  const min = Math.min(...mvBuffer);
-  const max = Math.max(...mvBuffer);
-  const avg = mvBuffer.reduce((a, b) => a + b, 0) / mvBuffer.length;
-  minMvEl.textContent = min.toFixed(3);
-  maxMvEl.textContent = max.toFixed(3);
-  avgMvEl.textContent = avg.toFixed(3);
-  rangeMvEl.textContent = (max - min).toFixed(3);
-  currentRawEl.textContent = raw;
-  currentMvEl.textContent = mv.toFixed(3);
-  dataCountEl.textContent = rawBuffer.length;
-  sampleRateEl.textContent = sampleRateHz ? sampleRateHz.toFixed(1) : '--';
-
   detectPeak(mv);
   updateSignalQuality();
 }
@@ -436,6 +416,17 @@ async function connect() {
     await selectedPort.open({ baudRate: baud });
     serialPort = selectedPort;
 
+    // Send DTR/RTS signals to trigger Arduino reset (like Serial Monitor does)
+    await serialPort.setSignals({ dataTerminalReady: true, requestToSend: true });
+    console.log('[SERIAL] Port opened, DTR/RTS set to HIGH');
+
+    // Brief delay then toggle DTR to trigger Arduino bootloader reset
+    await new Promise(r => setTimeout(r, 100));
+    await serialPort.setSignals({ dataTerminalReady: false });
+    await new Promise(r => setTimeout(r, 100));
+    await serialPort.setSignals({ dataTerminalReady: true });
+    console.log('[SERIAL] DTR toggled - Arduino should reset and start sending data');
+
     isSerialConnected = true;
     setConnectionStatus('connected', `Connected @ ${baud} baud`);
     connectBtn.classList.add('hidden');
@@ -455,6 +446,7 @@ async function connect() {
 }
 
 async function readSerialData() {
+  console.log('[SERIAL] readSerialData() started, readable:', !!serialPort.readable);
   serialReadAbortController = new AbortController();
 
   try {

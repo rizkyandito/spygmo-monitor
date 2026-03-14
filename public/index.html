@@ -166,101 +166,23 @@
                 </div>
             </div>
 
-            <!-- Metrics Row -->
-            <div class="metrics-row">
-                <div class="metric-card glass-card" data-metric="raw">
-                    <div class="metric-card-inner">
-                        <div class="metric-icon-bg">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                        </div>
-                        <span class="metric-label">Raw Value</span>
-                        <span id="currentRaw" class="metric-value">--</span>
-                        <span class="metric-unit">LSB</span>
+            <!-- PPG Waveform Chart -->
+            <div class="chart-card glass-card">
+                <div class="chart-header">
+                    <div class="chart-title-group">
+                        <span class="chart-title">PPG Waveform</span>
+                        <span class="chart-subtitle">Real-time photoplethysmography signal</span>
                     </div>
-                </div>
-                <div class="metric-card glass-card" data-metric="voltage">
-                    <div class="metric-card-inner">
-                        <div class="metric-icon-bg cyan">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                        </div>
-                        <span class="metric-label">Voltage</span>
-                        <span id="currentMv" class="metric-value accent-cyan">--</span>
-                        <span class="metric-unit">mV</span>
-                    </div>
-                </div>
-                <div class="metric-card glass-card" data-metric="rate">
-                    <div class="metric-card-inner">
-                        <div class="metric-icon-bg green">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v10l4.5 4.5"/><circle cx="12" cy="12" r="10"/></svg>
-                        </div>
-                        <span class="metric-label">Sample Rate</span>
-                        <span id="sampleRate" class="metric-value accent-green">--</span>
-                        <span class="metric-unit">Hz</span>
-                    </div>
-                </div>
-                <div class="metric-card glass-card" data-metric="count">
-                    <div class="metric-card-inner">
-                        <div class="metric-icon-bg amber">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/><path d="M12 7v5l3 3"/></svg>
-                        </div>
-                        <span class="metric-label">Data Points</span>
-                        <span id="dataCount" class="metric-value accent-amber">0</span>
-                        <span class="metric-unit">samples</span>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Chart + Stats Row -->
-            <div class="chart-stats-row">
-                <div class="chart-card glass-card">
-                    <div class="chart-header">
-                        <div class="chart-title-group">
-                            <span class="chart-title">Spygmo Signal</span>
-                            <span class="chart-subtitle">Real-time mV waveform</span>
-                        </div>
-                        <div class="chart-legend">
-                            <span class="legend-dot"></span>
-                            <span class="legend-text">mV</span>
-                        </div>
-                    </div>
-                    <div class="chart-body">
-                        <canvas id="ppgChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="stats-card glass-card">
-                    <div class="stats-header">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8v8M12 11v5M8 14v2M4 18h16"/></svg>
-                        Statistics
-                    </div>
-                    <div class="stats-grid">
-                        <div class="stat-item">
-                            <span class="stat-label">Min</span>
-                            <span id="minMv" class="stat-value">--</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Max</span>
-                            <span id="maxMv" class="stat-value">--</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Average</span>
-                            <span id="avgMv" class="stat-value">--</span>
-                        </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Range</span>
-                            <span id="rangeMv" class="stat-value">--</span>
-                        </div>
-                    </div>
-                    <!-- Signal Quality Meter -->
-                    <div class="signal-quality">
-                        <div class="quality-header">
-                            <span class="quality-label">Signal Quality</span>
-                            <span id="qualityPercent" class="quality-value">--%</span>
-                        </div>
-                        <div class="quality-bar">
+                    <div class="signal-quality-inline">
+                        <span class="quality-label">Signal</span>
+                        <div class="quality-bar-inline">
                             <div id="qualityFill" class="quality-fill" style="width: 0%"></div>
                         </div>
+                        <span id="qualityPercent" class="quality-value-inline">--%</span>
                     </div>
+                </div>
+                <div class="chart-body">
+                    <canvas id="ppgChart"></canvas>
                 </div>
             </div>
         </div>

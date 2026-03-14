@@ -1050,6 +1050,37 @@ body.dark-theme .theme-icon-dark { display: block; }
     box-shadow: 0 0 8px var(--accent-glow);
 }
 
+/* Signal quality inline (in chart header) */
+.signal-quality-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.signal-quality-inline .quality-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.quality-bar-inline {
+    width: 80px;
+    height: 5px;
+    background: var(--bg-muted);
+    border-radius: 99px;
+    overflow: hidden;
+}
+
+.quality-value-inline {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    min-width: 32px;
+    text-align: right;
+}
+
 /* ===================================
    Analysis Page
    =================================== */
