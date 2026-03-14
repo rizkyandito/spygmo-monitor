@@ -791,7 +791,7 @@ function showRecordingAnalysis(recording) {
 
   const content = `
     <div class="analysis-header">
-      <h4>${recording.name}</h4>
+      <h4 class="analysis-title-editable" id="analysisTitle" title="Click to rename">${recording.name}</h4>
       <div class="analysis-meta">
         <span>${recording.sampleCount} samples</span>
         <span>${recording.duration}s duration</span>
@@ -895,6 +895,52 @@ function showRecordingAnalysis(recording) {
   document.getElementById('downloadCurrentBtn').addEventListener('click', () => {
     downloadRecording(recording);
   });
+
+  // Click title to rename
+  const titleEl = document.getElementById('analysisTitle');
+  titleEl.addEventListener('click', () => {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'analysis-title-input';
+    input.value = recording.name;
+    titleEl.replaceWith(input);
+    input.focus();
+    input.select();
+
+    function saveTitle() {
+      const newName = input.value.trim();
+      if (newName && newName !== recording.name) {
+        recording.name = newName;
+        apiRenameRecording(recording.id, newName);
+      }
+      const newH4 = document.createElement('h4');
+      newH4.className = 'analysis-title-editable';
+      newH4.id = 'analysisTitle';
+      newH4.title = 'Click to rename';
+      newH4.textContent = recording.name;
+      input.replaceWith(newH4);
+      // Re-bind click
+      newH4.addEventListener('click', () => {
+        showRecordingAnalysis(recording);
+      });
+      // Update recordings list too
+      updateAnalysisPage();
+    }
+
+    input.addEventListener('blur', saveTitle);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveTitle();
+      if (e.key === 'Escape') {
+        const newH4 = document.createElement('h4');
+        newH4.className = 'analysis-title-editable';
+        newH4.id = 'analysisTitle';
+        newH4.title = 'Click to rename';
+        newH4.textContent = recording.name;
+        input.replaceWith(newH4);
+        newH4.addEventListener('click', () => showRecordingAnalysis(recording));
+      }
+    });
+  });
 }
 
 function downloadRecording(recording) {
@@ -903,7 +949,9 @@ function downloadRecording(recording) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `spygmo_${new Date(recording.timestamp).toISOString().replace(/[:.]/g, '-')}.csv`;
+  // Use recording name as filename (sanitize for filesystem)
+  const safeName = recording.name.replace(/[^a-zA-Z0-9_\-\s]/g, '').replace(/\s+/g, '_');
+  a.download = `${safeName}.csv`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
